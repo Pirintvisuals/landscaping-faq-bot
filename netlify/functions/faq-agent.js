@@ -34,7 +34,7 @@ export async function handler(event) {
     console.log("Request to Gemini:", JSON.stringify(requestBody, null, 2));
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -53,8 +53,7 @@ export async function handler(event) {
       aiAnswer = data.candidates[0].content.parts[0].text;
     } else if (data.error) {
       console.error("Gemini API Error:", data.error.message);
-      // TEMP: Show actual error for debugging
-      aiAnswer = `DEBUG ERROR: ${data.error.message || JSON.stringify(data.error)}`;
+      aiAnswer = "I'm having a small technical hiccup. Please try asking again in a moment!";
     } else {
       console.log("Unexpected Data Structure:", JSON.stringify(data));
       aiAnswer = "I heard you, but I'm not sure how to answer that. Could you rephrase?";
