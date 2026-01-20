@@ -53,7 +53,7 @@ export async function handler(event) {
       aiAnswer = data.candidates[0].content.parts[0].text;
     } else if (data.error) {
       console.error("Gemini API Error:", data.error.message);
-      aiAnswer = "I'm having a small technical hiccup. Please try asking again in a moment!";
+      aiAnswer = `DEBUG: ${data.error.message || JSON.stringify(data.error)}`;
     } else {
       console.log("Unexpected Data Structure:", JSON.stringify(data));
       aiAnswer = "I heard you, but I'm not sure how to answer that. Could you rephrase?";
