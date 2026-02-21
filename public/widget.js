@@ -45,19 +45,20 @@
       position: fixed;
       bottom: 94px;
       right: 18px;
-      background: #fff;
-      color: #1a2a1a;
+      background: #1a3d1a;
+      color: #fff;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      font-size: 13px;
-      font-weight: 500;
-      padding: 8px 14px;
-      border-radius: 20px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.14);
+      font-size: 15px;
+      font-weight: 700;
+      padding: 12px 18px;
+      border-radius: 14px;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.22);
       white-space: nowrap;
       z-index: 2147483641;
       pointer-events: none;
       transition: opacity 0.4s, transform 0.4s;
       transform: translateY(0);
+      letter-spacing: -0.01em;
     }
     #lc-label::after {
       content: '';
@@ -66,9 +67,8 @@
       right: 22px;
       width: 12px;
       height: 12px;
-      background: #fff;
+      background: #1a3d1a;
       transform: rotate(45deg);
-      box-shadow: 2px 2px 4px rgba(0,0,0,0.08);
       border-radius: 2px;
     }
     #lc-label.lc-label-hidden {
@@ -263,7 +263,7 @@
 
   const label = document.createElement('div');
   label.id = 'lc-label';
-  label.textContent = 'Plan your garden project 🌿';
+  label.textContent = 'Ready to turn your garden into a high-end retreat? 🌿';
   document.body.appendChild(label);
 
   // Auto-hide the label after 5 seconds
