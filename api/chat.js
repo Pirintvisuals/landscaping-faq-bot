@@ -169,7 +169,16 @@ module.exports = async function handler(req, res) {
 
     const reply = parsed.message || "Apologies, something went wrong. Please try again.";
 
-    if (parsed.lead && !leadAlreadySent) {
+    // Hard server-side gate: all 4 fields must be non-empty strings before an email is sent.
+    // This prevents Gemini from triggering a lead email with partial data.
+    const lead = parsed.lead;
+    const leadIsComplete = lead &&
+      lead.name  && lead.name.trim()  !== '' &&
+      lead.phone && lead.phone.trim() !== '' &&
+      lead.postcode && lead.postcode.trim() !== '' &&
+      lead.budget && lead.budget.trim() !== '';
+
+    if (leadIsComplete && !leadAlreadySent) {
       try {
         const transporter = nodemailer.createTransport({
           service: 'gmail',
@@ -179,7 +188,7 @@ module.exports = async function handler(req, res) {
           },
         });
 
-        const { name, postcode, budget, priority } = parsed.lead;
+        const { name, postcode, budget, priority } = lead;
         const priorityPrefix = priority ? '[PRIORITY] ' : '';
         const subject = `${priorityPrefix}[NEW LEAD] ${postcode} - ${name} - ${budget}`;
 
@@ -187,8 +196,8 @@ module.exports = async function handler(req, res) {
           from: `"Landscale Bot" <${process.env.GMAIL_USER}>`,
           to: process.env.OWNER_EMAIL,
           subject,
-          html: buildEmailHtml(parsed.lead),
-          text: buildEmailText(parsed.lead),
+          html: buildEmailHtml(lead),
+          text: buildEmailText(lead),
         });
 
         return res.status(200).json({ reply, rawResponse: rawText, leadSent: true });

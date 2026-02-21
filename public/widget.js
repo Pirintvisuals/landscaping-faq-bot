@@ -45,8 +45,8 @@
       position: fixed;
       bottom: 94px;
       right: 18px;
-      background: #1a3d1a;
-      color: #fff;
+      background: #fff;
+      color: #1a3d1a;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       font-size: 15px;
       font-weight: 700;
@@ -67,7 +67,7 @@
       right: 22px;
       width: 12px;
       height: 12px;
-      background: #1a3d1a;
+      background: #fff;
       transform: rotate(45deg);
       border-radius: 2px;
     }
