@@ -41,6 +41,42 @@
     }
     #lc-fab:hover { background: #2d5a27; transform: scale(1.07); }
 
+    #lc-label {
+      position: fixed;
+      bottom: 94px;
+      right: 18px;
+      background: #fff;
+      color: #1a2a1a;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 8px 14px;
+      border-radius: 20px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.14);
+      white-space: nowrap;
+      z-index: 2147483641;
+      pointer-events: none;
+      transition: opacity 0.4s, transform 0.4s;
+      transform: translateY(0);
+    }
+    #lc-label::after {
+      content: '';
+      position: absolute;
+      bottom: -6px;
+      right: 22px;
+      width: 12px;
+      height: 12px;
+      background: #fff;
+      transform: rotate(45deg);
+      box-shadow: 2px 2px 4px rgba(0,0,0,0.08);
+      border-radius: 2px;
+    }
+    #lc-label.lc-label-hidden {
+      opacity: 0;
+      transform: translateY(4px);
+      pointer-events: none;
+    }
+
     #lc-window {
       position: fixed;
       bottom: 96px;
@@ -225,6 +261,14 @@
   fab.setAttribute('aria-label', 'Open Landscale chat');
   fab.innerHTML = '🌿';
 
+  const label = document.createElement('div');
+  label.id = 'lc-label';
+  label.textContent = 'Plan your garden project 🌿';
+  document.body.appendChild(label);
+
+  // Auto-hide the label after 5 seconds
+  setTimeout(() => label.classList.add('lc-label-hidden'), 5000);
+
   const win = document.createElement('div');
   win.id = 'lc-window';
   win.setAttribute('role', 'dialog');
@@ -270,6 +314,7 @@
     win.classList.remove('lc-hidden');
     fab.innerHTML = '✕';
     fab.setAttribute('aria-label', 'Close chat');
+    label.classList.add('lc-label-hidden');
     if (msgArea.children.length === 0) appendMsg(OPENING_MESSAGE, 'bot');
     setTimeout(() => input.focus(), 220);
   }
