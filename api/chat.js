@@ -142,7 +142,7 @@ module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { message, history = [] } = req.body;
+    const { message, history = [], leadAlreadySent = false } = req.body;
     if (!message) return res.status(400).json({ error: 'message is required' });
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -166,7 +166,7 @@ module.exports = async function handler(req, res) {
 
     const reply = parsed.message || "Apologies, something went wrong. Please try again.";
 
-    if (parsed.lead) {
+    if (parsed.lead && !leadAlreadySent) {
       try {
         const transporter = nodemailer.createTransport({
           service: 'gmail',

@@ -29,6 +29,8 @@ messageInput.addEventListener('keydown', (e) => {
 
 sendButton.addEventListener('click', sendMessage);
 
+let leadAlreadySent = false; // ensures only one email per conversation
+
 async function sendMessage() {
   const text = messageInput.value.trim();
   if (!text || sendButton.disabled) return;
@@ -41,13 +43,15 @@ async function sendMessage() {
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text, history }),
+      body: JSON.stringify({ message: text, history, leadAlreadySent }),
     });
 
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
     const data = await response.json();
     const reply = data.reply || "Apologies — something went wrong on my end. Please try again.";
+
+    if (data.leadSent) leadAlreadySent = true;
 
     // Append this exchange to history for the next turn
     history.push(

@@ -285,6 +285,8 @@
   closeBtn.addEventListener('click', closeChat);
 
   // ── Messaging ─────────────────────────────────────────────────────────────
+  let leadAlreadySent = false; // ensures only one email per conversation
+
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   });
@@ -301,11 +303,13 @@
       const res = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, history }),
+        body: JSON.stringify({ message: text, history, leadAlreadySent }),
       });
       if (!res.ok) throw new Error('Network error');
       const data = await res.json();
       const reply = data.reply || "Apologies — something went wrong. Please try again.";
+
+      if (data.leadSent) leadAlreadySent = true;
 
       history.push(
         { role: 'user',  parts: [{ text }] },
