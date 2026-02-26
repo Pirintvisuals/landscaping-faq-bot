@@ -1,0 +1,27 @@
+# Fly.io config for Landscale Dashboard
+# Docs: https://fly.io/docs/reference/configuration/
+
+app = "landscale-dashboard"   # change this if the name is already taken on Fly
+primary_region = "lhr"        # London — closest to your UK users
+
+[build]
+  # Fly auto-detects Node.js from package.json — no Dockerfile needed
+
+[env]
+  NODE_ENV = "production"
+  PORT     = "8080"
+
+[[mounts]]
+  source      = "leads_data"   # name of the volume you'll create
+  destination = "/data"        # where leads.json is stored on the server
+
+[http_service]
+  internal_port       = 8080
+  force_https         = true
+  auto_stop_machines  = "off"  # keep always-on so chatbot can post leads any time
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  size   = "shared-cpu-1x"
+  memory = "256mb"
