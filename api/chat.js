@@ -1,7 +1,6 @@
 'use strict';
 
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const nodemailer = require('nodemailer');
 
 // Gemini model ID — verify against https://ai.google.dev/gemini-api/docs/models
 const MODEL_ID = 'gemini-2.5-flash-lite';
@@ -87,12 +86,20 @@ OUTPUT FORMAT — you MUST ALWAYS respond with a valid JSON object in this exact
     "scope": "Concise summary of project scope",
     "notes": "Any other relevant details from the conversation",
     "priority": false
-  }
+  },
+  "rejected": false
 }
-When lead is not yet ready or budget is below £3,000:
+When lead is still in progress (qualification not yet complete):
 {
   "message": "Your conversational response",
-  "lead": null
+  "lead": null,
+  "rejected": false
+}
+When budget is below £3,000 and you are declining the enquiry:
+{
+  "message": "Your polite decline message",
+  "lead": null,
+  "rejected": true
 }`;
 }
 
@@ -106,6 +113,63 @@ function extractJSON(text) {
   const block = text.match(/\{[\s\S]*\}/);
   if (block) { try { return JSON.parse(block[0]); } catch {} }
   return null;
+}
+
+async function logLeadToDashboard(payload) {
+  const dashboardUrl = process.env.DASHBOARD_URL;
+  if (!dashboardUrl) return; // silently skip when dashboard is not configured
+  try {
+    await fetch(`${dashboardUrl}/api/leads`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': process.env.DASHBOARD_API_KEY || 'dev-key-change-me',
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(5000),
+    });
+  } catch (err) {
+    // Dashboard logging must never crash the chatbot
+    console.error('Dashboard log error:', err.message);
+  }
+}
+
+async function scheduleFollowUps(lead, tier) {
+  const token  = process.env.QSTASH_TOKEN;
+  const secret = process.env.FOLLOWUP_SECRET;
+  const appUrl = (process.env.APP_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL || '').replace(/\/$/, '');
+
+  // Silently skip if not configured — chatbot never breaks
+  if (!token || !secret || !appUrl || !lead.email) return;
+
+  const dest    = encodeURIComponent(`${appUrl}/api/followup`);
+  const delays  = ['86400s', '259200s', '432000s']; // 24 h, 3 d, 5 d
+
+  const payload = {
+    secret,
+    name:          lead.name,
+    email:         lead.email,
+    projectType:   lead.scope,
+    tier,
+    estimatorLink: process.env.ESTIMATOR_LINK || 'https://landscaletemplate.framer.website/#quoter',
+    calendlyLink:  process.env.CALENDLY_LINK  || '',
+    ownerPhone:    process.env.OWNER_PHONE    || '',
+    ownerName:     process.env.OWNER_NAME     || 'Milán',
+  };
+
+  await Promise.all(
+    delays.map((delay, i) =>
+      fetch(`https://qstash.upstash.io/v2/publish/${dest}`, {
+        method:  'POST',
+        headers: {
+          'Authorization':  `Bearer ${token}`,
+          'Content-Type':   'application/json',
+          'Upstash-Delay':  delay,
+        },
+        body: JSON.stringify({ ...payload, followupNumber: i + 1 }),
+      }).catch(err => console.error(`QStash schedule error (followup ${i + 1}):`, err.message))
+    )
+  );
 }
 
 function buildEmailHtml(lead) {
@@ -165,7 +229,7 @@ module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { message, history = [], leadAlreadySent = false } = req.body;
+    const { message, history = [], leadAlreadySent = false, rejectedLogSent = false } = req.body;
     if (!message) return res.status(400).json({ error: 'message is required' });
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -198,31 +262,61 @@ module.exports = async function handler(req, res) {
       lead.postcode && lead.postcode.trim() !== '' &&
       lead.budget && lead.budget.trim() !== '';
 
-    if (leadIsComplete && !leadAlreadySent) {
-      try {
-        const transporter = nodemailer.createTransport({
-          service: 'gmail',
-          auth: {
-            user: process.env.GMAIL_USER,
-            pass: process.env.GMAIL_APP_PASSWORD,
-          },
-        });
+    // ── Log unqualified (rejected) lead to dashboard ─────────────────────────
+    if (parsed.rejected === true && !rejectedLogSent) {
+      logLeadToDashboard({
+        tier: 'unqualified',
+        source: 'chatbot',
+        status: 'rejected',
+      }).catch(() => {});
+      return res.status(200).json({ reply, rawResponse: rawText, rejectionLogged: true });
+    }
 
+    // ── Qualified / VIP lead: send email + log to dashboard ──────────────────
+    if (leadIsComplete && !leadAlreadySent) {
+      const tier = lead.priority ? 'vip' : 'qualified';
+
+      // Log to dashboard (fire-and-forget — never blocks the response)
+      logLeadToDashboard({
+        tier,
+        name: lead.name,
+        email: lead.email,
+        phone: lead.phone,
+        project_type: lead.scope,
+        estimated_value: lead.budget,
+        source: 'chatbot',
+        lead_source_detail: lead.postcode ? `postcode:${lead.postcode}` : '',
+        status: 'pending',
+      }).catch(() => {});
+
+      try {
         const { name, postcode, budget, priority } = lead;
         const priorityPrefix = priority ? '[PRIORITY] ' : '';
         const subject = `${priorityPrefix}[NEW LEAD] ${postcode} - ${name} - ${budget}`;
 
-        await transporter.sendMail({
-          from: `"Landscale Bot" <${process.env.GMAIL_USER}>`,
-          to: process.env.OWNER_EMAIL,
-          subject,
-          html: buildEmailHtml(lead),
-          text: buildEmailText(lead),
+        const resendRes = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from: process.env.RESEND_FROM || 'Landscale Bot <onboarding@resend.dev>',
+            to: [process.env.OWNER_EMAIL],
+            subject,
+            html: buildEmailHtml(lead),
+            text: buildEmailText(lead),
+          }),
         });
+
+        if (!resendRes.ok) throw new Error(`Resend error: ${resendRes.status}`);
+
+        // Schedule 3 follow-up emails via QStash (24 h, 3 d, 5 d)
+        await scheduleFollowUps(lead, tier);
 
         return res.status(200).json({ reply, rawResponse: rawText, leadSent: true });
       } catch (emailErr) {
-        console.error('Gmail send error:', emailErr);
+        console.error('Resend error:', emailErr);
         // Still return the reply even if email fails
         return res.status(200).json({ reply, rawResponse: rawText, leadSent: false });
       }
