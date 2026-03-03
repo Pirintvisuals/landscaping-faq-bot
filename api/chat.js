@@ -3,7 +3,7 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // Gemini model ID — verify against https://ai.google.dev/gemini-api/docs/models
-const MODEL_ID = 'gemini-2.5-flash-lite';
+const MODEL_ID = 'gemini-2.5-flash';
 
 function buildSystemPrompt() {
   const photosEmail = process.env.PHOTOS_EMAIL || process.env.OWNER_EMAIL;
