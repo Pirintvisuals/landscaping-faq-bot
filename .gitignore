@@ -8,3 +8,8 @@ node_modules/
 
 # Vercel
 .vercel/
+
+# Dashboard lead data
+dashboard/leads.json
+
+.vercel

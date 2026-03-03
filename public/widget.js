@@ -330,7 +330,8 @@
   closeBtn.addEventListener('click', closeChat);
 
   // ── Messaging ─────────────────────────────────────────────────────────────
-  let leadAlreadySent = false; // ensures only one email per conversation
+  let leadAlreadySent = false;          // ensures only one email per conversation
+  let rejectedLogSent = false;          // ensures unqualified lead is only logged once
 
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
@@ -348,13 +349,14 @@
       const res = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, history, leadAlreadySent }),
+        body: JSON.stringify({ message: text, history, leadAlreadySent, rejectedLogSent }),
       });
       if (!res.ok) throw new Error('Network error');
       const data = await res.json();
       const reply = data.reply || "Apologies — something went wrong. Please try again.";
 
-      if (data.leadSent) leadAlreadySent = true;
+      if (data.leadSent)        leadAlreadySent = true;
+      if (data.rejectionLogged) rejectedLogSent  = true;
 
       history.push(
         { role: 'user',  parts: [{ text }] },
