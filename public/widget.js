@@ -248,6 +248,51 @@
     }
     #lc-send:hover:not(:disabled) { background: #2d5a27; }
     #lc-send:disabled { background: #a8bea8; cursor: not-allowed; }
+
+    .lc-quick-replies {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 2px 12px 6px;
+    }
+    .lc-qr-btn {
+      padding: 7px 14px;
+      border: 1.5px solid #1a3d1a;
+      border-radius: 20px;
+      background: #fff;
+      color: #1a3d1a;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.15s, color 0.15s;
+    }
+    .lc-qr-btn:hover { background: #1a3d1a; color: #fff; }
+
+    .lc-calendar-btn {
+      margin: 4px 12px 8px;
+      padding: 11px 16px;
+      background: #1a3d1a;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      width: calc(100% - 24px);
+      font-family: inherit;
+      transition: background 0.15s;
+      text-align: center;
+    }
+    .lc-calendar-btn:hover { background: #2d5a27; }
+
+    .lc-ended {
+      text-align: center;
+      font-size: 11px;
+      color: #7a9a7a;
+      padding: 10px 12px 6px;
+      border-top: 1px solid #e4ebe4;
+    }
   `;
 
   const styleEl = document.createElement('style');
@@ -304,6 +349,7 @@
   const input    = document.getElementById('lc-input');
   const sendBtn  = document.getElementById('lc-send');
   const typing   = document.getElementById('lc-typing');
+  const inputRow = document.getElementById('lc-input-row');
   const closeBtn = document.getElementById('lc-close');
 
   // ── Open / close ──────────────────────────────────────────────────────────
@@ -330,8 +376,9 @@
   closeBtn.addEventListener('click', closeChat);
 
   // ── Messaging ─────────────────────────────────────────────────────────────
-  let leadAlreadySent = false;          // ensures only one email per conversation
-  let rejectedLogSent = false;          // ensures unqualified lead is only logged once
+  let leadAlreadySent     = false;
+  let rejectedLogSent     = false;
+  let barelyQualifiedSent = false;
 
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
@@ -349,25 +396,30 @@
       const res = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, history, leadAlreadySent, rejectedLogSent }),
+        body: JSON.stringify({ message: text, history, leadAlreadySent, rejectedLogSent, barelyQualifiedSent }),
       });
       if (!res.ok) throw new Error('Network error');
       const data = await res.json();
       const reply = data.reply || "Apologies — something went wrong. Please try again.";
 
-      if (data.leadSent)        leadAlreadySent = true;
-      if (data.rejectionLogged) rejectedLogSent  = true;
+      if (data.leadSent)           leadAlreadySent     = true;
+      if (data.rejectionLogged)    rejectedLogSent     = true;
+      if (data.barelyQualifiedSent) barelyQualifiedSent = true;
 
       history.push(
         { role: 'user',  parts: [{ text }] },
         { role: 'model', parts: [{ text: data.rawResponse || JSON.stringify({ message: reply, lead: null }) }] }
       );
       appendMsg(reply, 'bot');
+
+      if (data.quickReplies && data.quickReplies.length) appendQuickReplies(data.quickReplies);
+      if (data.showCalendar)  appendCalendarButton(data.showCalendar);
+      if (data.conversationEnded) endConversation();
     } catch {
       appendMsg("Apologies — I'm having trouble connecting. Please try again shortly.", 'bot');
     } finally {
       setLoading(false);
-      input.focus();
+      if (!sendBtn.disabled) input.focus();
     }
   }
 
@@ -380,6 +432,61 @@
     wrapper.appendChild(bubble);
     msgArea.appendChild(wrapper);
     msgArea.scrollTop = msgArea.scrollHeight;
+  }
+
+  function appendQuickReplies(options) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'lc-quick-replies';
+    options.forEach(opt => {
+      const btn = document.createElement('button');
+      btn.className = 'lc-qr-btn';
+      btn.textContent = opt;
+      btn.addEventListener('click', () => {
+        wrapper.remove();
+        input.value = opt;
+        send();
+      });
+      wrapper.appendChild(btn);
+    });
+    msgArea.appendChild(wrapper);
+    msgArea.scrollTop = msgArea.scrollHeight;
+  }
+
+  function showCalendlyPopup(url) {
+    function open() { window.Calendly.initPopupWidget({ url }); }
+    if (window.Calendly) {
+      open();
+      return;
+    }
+    if (!document.getElementById('lc-calendly-css')) {
+      const link = document.createElement('link');
+      link.id   = 'lc-calendly-css';
+      link.rel  = 'stylesheet';
+      link.href = 'https://assets.calendly.com/assets/external/widget.css';
+      document.head.appendChild(link);
+    }
+    const script  = document.createElement('script');
+    script.src    = 'https://assets.calendly.com/assets/external/widget.js';
+    script.onload = open;
+    document.head.appendChild(script);
+  }
+
+  function appendCalendarButton(calendlyUrl) {
+    const btn = document.createElement('button');
+    btn.className   = 'lc-calendar-btn';
+    btn.textContent = '📅 Book your free site visit →';
+    btn.addEventListener('click', () => showCalendlyPopup(calendlyUrl));
+    msgArea.appendChild(btn);
+    msgArea.scrollTop = msgArea.scrollHeight;
+  }
+
+  function endConversation() {
+    input.disabled  = true;
+    sendBtn.disabled = true;
+    const ended = document.createElement('div');
+    ended.className = 'lc-ended';
+    ended.textContent = '✓ We\'ll be in touch soon.';
+    inputRow.replaceWith(ended);
   }
 
   function fmt(text) {
